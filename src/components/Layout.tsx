@@ -1,10 +1,8 @@
-import { Fragment, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { useData } from '../lib/data';
 import { useTheme, type ThemeChoice } from '../lib/theme';
-import { exportCsv } from '../lib/export';
-import QuickAddUniversity from './QuickAddUniversity';
+import { useExport } from '../lib/useExport';
 
 interface NavItem { to: string; label: string; icon: string; end?: boolean }
 
@@ -29,8 +27,8 @@ export function ThemeButton({ className = 'btn' }: { className?: string }) {
 
 export default function Layout() {
   const { user, logout } = useAuth();
-  const { data, online, stale, refreshing, refresh } = useData();
-  const [addUniOpen, setAddUniOpen] = useState(false);
+  const { online, stale, refreshing, refresh } = useData();
+  const { busy: exporting, run: runExport } = useExport();
 
   const side = 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800';
   const sideActive = '!bg-indigo-50 !text-indigo-700 dark:!bg-indigo-950 dark:!text-indigo-300';
@@ -42,18 +40,11 @@ export default function Layout() {
         <div className="mb-6 px-3 text-lg font-semibold">✉️ ProfMail</div>
         <nav className="flex flex-1 flex-col gap-1">
           {[...MAIN, ...MORE_LINKS, ...(user?.role === 'admin' ? [{ to: '/admin', label: 'Admin', icon: '🔑' }] : [])].map((l) => (
-            <Fragment key={l.to}>
-              <NavLink to={l.to} end={l.end} className={({ isActive }) => `${side} ${isActive ? sideActive : ''}`}>
-                <span aria-hidden>{l.icon}</span> {l.label}
-              </NavLink>
-              {l.to === '/universities' && (
-                <button className={`${side} ml-4 text-left`} onClick={() => setAddUniOpen(true)}>
-                  <span aria-hidden>➕</span> Add university
-                </button>
-              )}
-            </Fragment>
+            <NavLink key={l.to} to={l.to} end={l.end} className={({ isActive }) => `${side} ${isActive ? sideActive : ''}`}>
+              <span aria-hidden>{l.icon}</span> {l.label}
+            </NavLink>
           ))}
-          <button className={`${side} text-left`} onClick={() => exportCsv(data)}><span aria-hidden>⬇️</span> Export CSV</button>
+          <button className={`${side} text-left`} onClick={() => runExport('all')} disabled={exporting}><span aria-hidden>⬇️</span> {exporting ? 'Making file…' : 'Export all (Excel)'}</button>
         </nav>
         <div className="space-y-2 border-t border-slate-200 pt-3 dark:border-slate-800">
           <div className="px-1 text-sm muted">Signed in as <b>{user?.name}</b></div>
@@ -78,8 +69,6 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
-
-      {addUniOpen && <QuickAddUniversity onClose={() => setAddUniOpen(false)} />}
 
       {/* Bottom bar (mobile) */}
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] dark:border-slate-800 dark:bg-slate-900 md:hidden">

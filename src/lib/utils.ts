@@ -150,28 +150,3 @@ export function gmailUrl(to: string, subject: string, body: string): string {
 export function mailtoUrl(to: string, subject: string, body: string): string {
   return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
-
-// ---------- CSV ----------
-
-export function toCsv(rows: string[][]): string {
-  const cell = (v: string) => {
-    let s = String(v ?? '');
-    // Stop spreadsheet programs from running text that starts like a formula.
-    if (/^[=+\-@]/.test(s)) s = "'" + s;
-    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-  };
-  return rows.map((r) => r.map(cell).join(',')).join('\r\n');
-}
-
-export function downloadFile(filename: string, content: string, mime: string) {
-  // The BOM at the start makes Excel read accents correctly.
-  const blob = new Blob(['﻿' + content], { type: mime + ';charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}

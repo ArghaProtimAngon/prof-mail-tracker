@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useData } from '../lib/data';
+import { useExport } from '../lib/useExport';
 import { deadlineInfo, followUpAge, formatDate, formatShortDate, safeUrl } from '../lib/utils';
 import { STATUSES, type Professor, type Status } from '../lib/types';
 import StatusChip, { Badge } from '../components/StatusChip';
@@ -10,6 +11,7 @@ type Sort = 'added' | 'deadline' | 'name';
 export default function Professors() {
   const { data, people, followUpDays, loading, contactOf, statusOf } = useData();
   const [params, setParams] = useSearchParams();
+  const { busy: exporting, run: runExport } = useExport();
   const [search, setSearch] = useState('');
   const [university, setUniversity] = useState('');
   const [field, setField] = useState('');
@@ -64,7 +66,12 @@ export default function Professors() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Professors <span className="text-base font-normal muted">({list.length})</span></h1>
-        <Link to="/professors/new" className="btn btn-primary">+ Add</Link>
+        <div className="flex gap-2">
+          <button className="btn" onClick={() => runExport('professors')} disabled={exporting || !data.professors.length}>
+            ⬇️ {exporting ? 'Making file…' : 'Export Excel'}
+          </button>
+          <Link to="/professors/new" className="btn btn-primary">+ Add</Link>
+        </div>
       </div>
 
       <div className="card space-y-3 p-3">

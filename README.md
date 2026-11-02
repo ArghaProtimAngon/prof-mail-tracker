@@ -136,8 +136,8 @@ If the invite link is opened inside another app (like WhatsApp), long-press the 
 - **Email with template**: pick a template, then open Gmail (or another mail app), or copy the email. Then it asks "Did you send it?". If you say yes, the status becomes "Sent" with today's date.
   Placeholders: `{professor_name}`, `{professor_last_name}`, `{university}`, `{field}`, `{my_name}`.
 - **Activity**: who did what, newest first.
+- **Export to Excel**: all exports are `.xlsx` files (they open in Excel, Google Sheets and phones). **Export Excel** on the Professors page gives the professors with both people's status, date and reply. **Export Excel** on the Universities page gives the universities with both people's application status and documents done. **Export all (Excel)** on the Dashboard (and in the sidebar, or on the More tab on a phone) gives one file with three sheets: *Combined* (each university next to its professors), *Professors* and *Universities*.
 - **Settings**: follow-up days (default 10) and dark mode (system / light / dark).
-- **Export CSV**: one file with the professor info and both people's status, date and reply.
 - **Offline**: the app opens with your last saved data and shows a banner. Saving is turned off until you are online again.
 - **Deleting a professor** only hides it. The row stays in your Sheet, so you can bring it back by changing `deleted` to `FALSE` on that row of the **Professors** tab.
 

@@ -1,40 +1,44 @@
-import type { AppData } from './types';
-import { CHECKLIST_ITEMS } from './types';
-import { checklistKeys, downloadFile, todayStr, toCsv } from './utils';
+import type { AppData } from './types.ts';
+import { combinedSheet, professorSheet, universitySheet, type SheetRows } from './exportRows.ts';
+import { todayStr } from './utils.ts';
 
-/** One CSV with the professor info and, for every person, their status, date sent and reply. */
-export function exportCsv(data: AppData) {
-  const people = data.users.filter((u) => !u.revoked);
-  const header = ['Name', 'University', 'Field', 'Email', 'Lab website', 'Google Scholar', 'Funding', 'Deadline', 'Notes'];
-  people.forEach((u) => header.push(`${u.name} - status`, `${u.name} - date sent`, `${u.name} - reply`));
+/** Makes the .xlsx file. The Excel library is loaded only now, so the app opens faster. */
+export async function buildXlsx(sheets: SheetRows[]): Promise<Blob> {
+  const { default: writeExcelFile } = await import('write-excel-file/universal');
 
-  const rows = data.professors.map((p) => {
-    const row = [p.name, p.university, p.field, p.email, p.lab_url, p.scholar_url, p.has_funding, p.deadline, p.notes];
-    people.forEach((u) => {
-      const c = data.contacts.find((x) => x.professor_id === p.id && x.user_id === u.user_id);
-      row.push(c?.status || 'Not sent', c?.date_sent || '', c?.response_text || '');
-    });
-    return row;
-  });
-
-  downloadFile(`professors-${todayStr()}.csv`, toCsv([header, ...rows]), 'text/csv');
+  return writeExcelFile(
+    sheets.map((s) => ({
+      sheet: s.name,
+      stickyRowsCount: 1, // keep the header row visible when scrolling
+      columns: s.rows[0].map((_, c) => ({
+        // wide enough for the longest text in the column, but not huge
+        width: Math.min(50, Math.max(10, ...s.rows.slice(0, 200).map((r) => (r[c] || '').split('\n')[0].length + 2))),
+      })),
+      data: s.rows.map((row, i) =>
+        row.map((value) => (i === 0 ? { value, fontWeight: 'bold' as const } : value === '' ? null : value))
+      ),
+    }))
+  ).toBlob();
 }
 
-/** One CSV with the university info and, for every person, their application status and documents done. */
-export function exportUniversitiesCsv(data: AppData) {
-  const people = data.users.filter((u) => !u.revoked);
-  const header = ['University', 'Country', 'Program', 'Website', 'Admission page', 'Deadline', 'Fee', 'Funding', 'Priority', 'Tier', 'Notes'];
-  people.forEach((u) => header.push(`${u.name} - status`, `${u.name} - documents done`));
-
-  const rows = data.universities.map((x) => {
-    const row = [x.name, x.country, x.program, x.website, x.admission_url, x.deadline, x.fee, x.funding, x.priority, x.tier, x.notes];
-    people.forEach((u) => {
-      const p = data.universityProgress.find((r) => r.university_id === x.id && r.user_id === u.user_id);
-      const done = checklistKeys(p?.checklist || '');
-      row.push(p?.status || 'Not started', CHECKLIST_ITEMS.filter((i) => done.includes(i.key)).map((i) => i.label).join('; '));
-    });
-    return row;
-  });
-
-  downloadFile(`universities-${todayStr()}.csv`, toCsv([header, ...rows]), 'text/csv');
+async function saveXlsx(filename: string, sheets: SheetRows[]) {
+  const blob = await buildXlsx(sheets);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+export const exportProfessors = (data: AppData) =>
+  saveXlsx(`professors-${todayStr()}.xlsx`, [professorSheet(data)]);
+
+export const exportUniversities = (data: AppData) =>
+  saveXlsx(`universities-${todayStr()}.xlsx`, [universitySheet(data)]);
+
+/** One workbook with three sheets: Combined, Professors and Universities. */
+export const exportEverything = (data: AppData) =>
+  saveXlsx(`prof-mail-tracker-${todayStr()}.xlsx`, [combinedSheet(data), professorSheet(data), universitySheet(data)]);

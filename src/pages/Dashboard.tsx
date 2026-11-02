@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useData } from '../lib/data';
+import { useExport } from '../lib/useExport';
 import { computeStats } from '../lib/stats';
 import { STATUSES, UNI_STATUSES, type Status } from '../lib/types';
 import { deadlineInfo, followUpAge, formatDateTime } from '../lib/utils';
@@ -16,6 +17,7 @@ const BAR_COLORS: Record<Status, string> = {
 
 export default function Dashboard() {
   const { data, people, followUpDays, loading, userName, contactOf, statusOf, uniStatusOf } = useData();
+  const { busy: exporting, run: runExport } = useExport();
 
   if (loading) return <p className="muted">Loading your data…</p>;
 
@@ -58,6 +60,14 @@ export default function Dashboard() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Dashboard</h1>
         <div className="flex gap-2">
+          <button
+            className="btn"
+            onClick={() => runExport('all')}
+            disabled={exporting || (!data.professors.length && !data.universities.length)}
+            title="One Excel file with professors and universities together"
+          >
+            ⬇️ {exporting ? 'Making file…' : 'Export all (Excel)'}
+          </button>
           <Link to="/professors/new" className="btn">+ Professor</Link>
           <Link to="/universities/new" className="btn btn-primary">+ University</Link>
         </div>

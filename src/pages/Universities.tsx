@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useData } from '../lib/data';
-import { exportUniversitiesCsv } from '../lib/export';
+import { useExport } from '../lib/useExport';
 import { UNI_STATUSES, PRIORITIES, TIERS, type UniStatus, type University } from '../lib/types';
 import { checklistKeys, deadlineInfo, formatDate, uniKey } from '../lib/utils';
 import { Badge, UniStatusChip } from '../components/StatusChip';
@@ -20,6 +20,7 @@ export default function Universities() {
   const [tier, setTier] = useState('');
   const [sort, setSort] = useState<Sort>('added');
   const [addMany, setAddMany] = useState(false);
+  const { busy: exporting, run: runExport } = useExport();
 
   const countries = useMemo(() => [...new Set(data.universities.map((u) => u.country).filter(Boolean))].sort(), [data.universities]);
 
@@ -92,7 +93,9 @@ export default function Universities() {
           </select>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <button className="btn !py-1" onClick={() => exportUniversitiesCsv(data)} disabled={!data.universities.length}>⬇️ Export CSV</button>
+          <button className="btn !py-1" onClick={() => runExport('universities')} disabled={exporting || !data.universities.length}>
+            ⬇️ {exporting ? 'Making file…' : 'Export Excel'}
+          </button>
           <div className="flex items-center gap-2 text-sm">
             <label htmlFor="usort" className="muted">Sort by</label>
             <select id="usort" className="input !w-auto !py-1" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
