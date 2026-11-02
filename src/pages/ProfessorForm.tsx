@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useData } from '../lib/data';
+import UniversityCombobox from '../components/UniversityCombobox';
 import { normalizeEmail, similarProfessor, uniKey } from '../lib/utils';
 
 const BLANK = { name: '', university: '', field: '', email: '', lab_url: '', scholar_url: '', has_funding: 'unknown', deadline: '', notes: '' };
@@ -30,7 +31,8 @@ export default function ProfessorForm() {
   // Duplicate warnings (we never block, we only warn).
   const email = normalizeEmail(form.email);
   const sameEmail = email ? data.professors.find((p) => p.id !== id && normalizeEmail(p.email) === email) : undefined;
-  const inList = data.universities.some((u) => uniKey(u.name) === uniKey(form.university));
+  const universityNames = data.universities.map((u) => u.name).sort((a, b) => a.localeCompare(b));
+  const inList =data.universities.some((u) => uniKey(u.name) === uniKey(form.university));
   const similar = !sameEmail ? similarProfessor(data.professors, form.name, form.university, id) : undefined;
 
   async function submit(e: React.FormEvent) {
@@ -70,19 +72,15 @@ export default function ProfessorForm() {
         <div>
           <label className="label" htmlFor="university">University</label>
           {/* You can type any name, or pick one from your Universities list. */}
-          <input
+          <UniversityCombobox
             id="university"
-            className="input"
-            list="university-options"
-            autoComplete="off"
-            maxLength={200}
             value={form.university}
-            onChange={set('university')}
-            placeholder="Type, or pick from your list"
+            onChange={(v) => setForm((f) => ({ ...f, university: v }))}
+            options={universityNames}
           />
-          <datalist id="university-options">
-            {data.universities.map((u) => <option key={u.id} value={u.name} />)}
-          </datalist>
+          {data.universities.length === 0 && (
+            <p className="mt-1 text-xs muted">Your Universities list is empty. Add universities there and they will show up here to pick from.</p>
+          )}
           {form.university.trim() && data.universities.length > 0 && !inList && (
             <p className="mt-1 text-xs muted">
               Not in your Universities list yet. That is fine.{' '}
