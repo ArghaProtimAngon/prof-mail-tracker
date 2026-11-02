@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api, ApiError } from './api';
 import { useAuth } from './auth';
 import { useToast } from './toast';
-import type { AppData, AppUser, Contact, Professor, Status } from './types';
+import type { AppData, AppUser, Contact, Professor, Status, UniStatus, University, UniversityProgress } from './types';
 
 interface DataState {
   data: AppData;
@@ -20,15 +20,18 @@ interface DataState {
   contactOf: (professorId: string, userId: string) => Contact | undefined;
   statusOf: (professorId: string, userId: string) => Status;
   userName: (userId: string) => string;
+  universityById: (id: string) => University | undefined;
+  uniProgressOf: (universityId: string, userId: string) => UniversityProgress | undefined;
+  uniStatusOf: (universityId: string, userId: string) => UniStatus;
 }
 
-const EMPTY: AppData = { professors: [], contacts: [], users: [], templates: [], settings: {}, activity: [] };
+const EMPTY: AppData = { universities: [], universityProgress: [], professors: [], contacts: [], users: [], templates: [], settings: {}, activity: [] };
 const DataContext = createContext<DataState | null>(null);
 
 function readCache(key: string): AppData | null {
   try {
     const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as AppData) : null;
+    return raw ? ({ ...EMPTY, ...JSON.parse(raw) } as AppData) : null;
   } catch {
     return null;
   }
@@ -55,7 +58,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const fresh = await api<AppData>('getAll');
+      // Fill in anything an older backend does not send yet.
+      const fresh: AppData = { ...EMPTY, ...(await api<AppData>('getAll')) };
       setData(fresh);
       setStale(false);
       lastLoad.current = Date.now();
@@ -105,6 +109,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const contactMap = new Map<string, Contact>();
     data.contacts.forEach((c) => contactMap.set(`${c.professor_id}|${c.user_id}`, c));
     const profMap = new Map(data.professors.map((p) => [p.id, p]));
+    const uniMap = new Map(data.universities.map((u) => [u.id, u]));
+    const progressMap = new Map<string, UniversityProgress>();
+    data.universityProgress.forEach((r) => progressMap.set(`${r.university_id}|${r.user_id}`, r));
     const userMap = new Map(data.users.map((u) => [u.user_id, u.name]));
     const days = Number(data.settings.follow_up_days);
     return {
@@ -115,6 +122,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       contactOf: (pid, uid) => contactMap.get(`${pid}|${uid}`),
       statusOf: (pid, uid) => contactMap.get(`${pid}|${uid}`)?.status || 'Not sent',
       userName: (id) => userMap.get(id) || 'Someone',
+      universityById: (id) => uniMap.get(id),
+      uniProgressOf: (uid, userId) => progressMap.get(`${uid}|${userId}`),
+      uniStatusOf: (uid, userId) => progressMap.get(`${uid}|${userId}`)?.status || 'Not started',
     };
   }, [data, loading, refreshing, stale, online, refresh, save]);
 

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useData } from '../lib/data';
 import { computeStats } from '../lib/stats';
-import { STATUSES, type Status } from '../lib/types';
+import { STATUSES, UNI_STATUSES, type Status } from '../lib/types';
 import { deadlineInfo, followUpAge, formatDateTime } from '../lib/utils';
 import { Badge } from '../components/StatusChip';
 
@@ -15,7 +15,7 @@ const BAR_COLORS: Record<Status, string> = {
 };
 
 export default function Dashboard() {
-  const { data, people, followUpDays, loading, userName, contactOf, statusOf } = useData();
+  const { data, people, followUpDays, loading, userName, contactOf, statusOf, uniStatusOf } = useData();
 
   if (loading) return <p className="muted">Loading your data…</p>;
 
@@ -48,9 +48,20 @@ export default function Dashboard() {
     .filter((x) => x.info?.soon)
     .sort((a, b) => a.info!.days - b.info!.days);
 
+  const uniDeadlines = data.universities
+    .map((u) => ({ u, info: deadlineInfo(u.deadline) }))
+    .filter((x) => x.info?.soon)
+    .sort((a, b) => a.info!.days - b.info!.days);
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Dashboard</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">Dashboard</h1>
+        <div className="flex gap-2">
+          <Link to="/professors/new" className="btn">+ Professor</Link>
+          <Link to="/universities/new" className="btn btn-primary">+ University</Link>
+        </div>
+      </div>
 
       {data.professors.length === 0 && (
         <div className="card p-6 text-center">
@@ -103,6 +114,55 @@ export default function Dashboard() {
           </div>
         </section>
       )}
+
+      <section className="card overflow-x-auto p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-semibold">Universities <span className="text-sm font-normal muted">({data.universities.length} in the list)</span></h2>
+          <Link to="/universities" className="text-sm">See all →</Link>
+        </div>
+        {data.universities.length === 0 ? (
+          <div className="py-2 text-center">
+            <p className="mb-3 text-sm muted">Keep a list of universities you want to apply to, even without a professor.</p>
+            <Link to="/universities/new" className="btn btn-primary">+ Add university</Link>
+          </div>
+        ) : (
+          <>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-left dark:border-slate-800">
+                  <th className="py-2 pr-3 font-medium muted">Application</th>
+                  {people.map((u) => <th key={u.user_id} className="p-2 text-right font-semibold">{u.name}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {UNI_STATUSES.map((s) => (
+                  <tr key={s} className="border-b border-slate-100 last:border-0 dark:border-slate-800/60">
+                    <td className="py-2 pr-3 muted">{s}</td>
+                    {people.map((u) => (
+                      <td key={u.user_id} className="p-2 text-right tabular-nums">
+                        {data.universities.filter((x) => uniStatusOf(x.id, u.user_id) === s).length}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {uniDeadlines.length > 0 && (
+              <div className="mt-4">
+                <h3 className="mb-1 text-sm font-semibold">University deadlines in the next 14 days</h3>
+                <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {uniDeadlines.map(({ u, info }) => (
+                    <li key={u.id} className="flex items-center justify-between gap-3 py-2">
+                      <Link to={`/universities/${u.id}`} className="min-w-0 truncate">{u.name}</Link>
+                      <Badge tone="red">{info!.days === 0 ? 'Today' : info!.days === 1 ? 'Tomorrow' : `In ${info!.days} days`}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        )}
+      </section>
 
       <section className="card p-4">
         <h2 className="mb-2 font-semibold">Needs follow-up <span className="text-sm font-normal muted">(sent more than {followUpDays} days ago)</span></h2>

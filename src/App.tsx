@@ -8,6 +8,9 @@ import Dashboard from './pages/Dashboard';
 import Professors from './pages/Professors';
 import ProfessorForm from './pages/ProfessorForm';
 import ProfessorDetail from './pages/ProfessorDetail';
+import Universities from './pages/Universities';
+import UniversityForm from './pages/UniversityForm';
+import UniversityDetail from './pages/UniversityDetail';
 import Activity from './pages/Activity';
 import More from './pages/More';
 import Templates from './pages/Templates';
@@ -31,6 +34,10 @@ export default function App() {
           <Route path="/professors/new" element={<ProfessorForm />} />
           <Route path="/professors/:id" element={<ProfessorDetail />} />
           <Route path="/professors/:id/edit" element={<ProfessorForm />} />
+          <Route path="/universities" element={<Universities />} />
+          <Route path="/universities/new" element={<UniversityForm />} />
+          <Route path="/universities/:id" element={<UniversityDetail />} />
+          <Route path="/universities/:id/edit" element={<UniversityForm />} />
           <Route path="/activity" element={<Activity />} />
           <Route path="/more" element={<More />} />
           <Route path="/templates" element={<Templates />} />

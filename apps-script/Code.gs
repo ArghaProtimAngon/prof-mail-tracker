@@ -13,10 +13,26 @@ var SCHEMA = {
   Users: ['user_id', 'name', 'role', 'invite_code', 'session_token', 'invite_used', 'revoked', 'created_at'],
   Templates: ['id', 'user_id', 'title', 'subject', 'body', 'updated_at'],
   Activity: ['id', 'timestamp', 'user_id', 'action', 'professor_id', 'details'],
-  Settings: ['key', 'value']
+  Settings: ['key', 'value'],
+  // Universities you want to apply to (no professor needed).
+  Universities: ['id', 'name', 'country', 'program', 'website', 'admission_url', 'deadline', 'fee', 'funding', 'priority', 'tier', 'notes', 'added_by', 'created_at', 'updated_at', 'deleted'],
+  // One row per (university, person): that person's application status and documents checklist.
+  UniversityProgress: ['id', 'university_id', 'user_id', 'status', 'checklist', 'updated_at']
 };
 
-var STATUSES = ['Not sent', 'Sent', 'Seen', 'Replied (positive)', 'Replied (negative)', 'No reply'];
+var UNI_STATUSES = ['Not started', 'Preparing', 'Submitted', 'Interview', 'Accepted', 'Rejected'];
+var CHECKLIST_KEYS = ['cv', 'sop', 'transcripts', 'recommendations', 'english_test'];
+var PRIORITIES = ['High', 'Medium', 'Low'];
+var TIERS = ['Dream', 'Target', 'Safe'];
+
+// University fields the app may set, with the maximum length of each.
+var UNI_FIELDS = {
+  name: 200, country: 100, program: 200, website: 500, admission_url: 500, deadline: 10,
+  fee: 50, funding: 10, priority: 10, tier: 10, notes: 5000
+};
+var MAX_BULK_UNIVERSITIES = 100;
+
+var STATUSES =['Not sent', 'Sent', 'Seen', 'Replied (positive)', 'Replied (negative)', 'No reply'];
 var FUNDING = ['yes', 'no', 'unknown'];
 
 // Professor fields the app may set, with the maximum length of each.
@@ -145,7 +161,15 @@ var ACTIONS = {
     var activity = readAll_('Activity');
     activity = activity.slice(Math.max(0, activity.length - 200)).reverse().map(strip_);
 
+    var universities = readAll_('Universities')
+      .filter(function (u) { return !truthy_(u.deleted); })
+      .map(function (u) { var o = strip_(u); delete o.deleted; return o; });
+    var uniIds = {};
+    universities.forEach(function (u) { uniIds[u.id] = true; });
+
     return {
+      universities: universities,
+      universityProgress: readAll_('UniversityProgress').filter(function (r) { return uniIds[r.university_id]; }).map(strip_),
       professors: professors,
       contacts: readAll_('Contacts').filter(function (c) { return ids[c.professor_id]; }).map(strip_),
       users: readAll_('Users').map(function (u) {
@@ -230,6 +254,100 @@ var ACTIONS = {
       logActivity_(user, 'status', prof.id, 'changed the date sent for ' + label);
     }
     return { professor_id: prof.id };
+  },
+
+  // --- Universities (no professor needed) ---
+  addUniversity: function (req, user) {
+    var u = { id: newId_('i'), added_by: user.user_id, created_at: now_(), updated_at: now_(), deleted: false };
+    Object.keys(UNI_FIELDS).forEach(function (k) { u[k] = cleanUniField_(k, req[k]); });
+    if (!u.name) throw new Error('Please enter the university name.');
+    appendRow_('Universities', u);
+    logActivity_(user, 'uni_added', u.id, 'added the university ' + u.name);
+    return { id: u.id };
+  },
+
+  // Paste many names at once (a list, or text with one name per line). Names already in the list are skipped.
+  addUniversities: function (req, user) {
+    var names = Array.isArray(req.names) ? req.names : String(req.names || '').split(/\r?\n/);
+    var seen = {};
+    readAll_('Universities').filter(function (u) { return !truthy_(u.deleted); })
+      .forEach(function (u) { seen[uniKey_(u.name)] = true; });
+    var toAdd = [];
+    var skipped = 0;
+    names.forEach(function (n) {
+      var name = String(n || '').trim().slice(0, UNI_FIELDS.name);
+      if (!name) return;
+      if (seen[uniKey_(name)]) { skipped++; return; }
+      seen[uniKey_(name)] = true;
+      toAdd.push(name);
+    });
+    if (toAdd.length > MAX_BULK_UNIVERSITIES) throw new Error('Please add at most ' + MAX_BULK_UNIVERSITIES + ' universities at a time.');
+    toAdd.forEach(function (name) {
+      appendRow_('Universities', {
+        id: newId_('i'), name: name, funding: 'unknown', added_by: user.user_id,
+        created_at: now_(), updated_at: now_(), deleted: false
+      });
+    });
+    if (toAdd.length) logActivity_(user, 'uni_added', '', 'added ' + toAdd.length + ' universit' + (toAdd.length === 1 ? 'y' : 'ies') + ' to the list');
+    return { added: toAdd.length, skipped: skipped };
+  },
+
+  // Only the fields you send are changed.
+  updateUniversity: function (req, user) {
+    var uni = getUniversity_(req.id);
+    var changes = {};
+    Object.keys(UNI_FIELDS).forEach(function (k) {
+      if (req[k] === undefined) return;
+      var v = cleanUniField_(k, req[k]);
+      if (String(uni[k]) !== v) changes[k] = v;
+    });
+    var keys = Object.keys(changes);
+    if (!keys.length) return { id: uni.id };
+    if (changes.name !== undefined && !changes.name) throw new Error('The university name cannot be empty.');
+    changes.updated_at = now_();
+    updateRow_('Universities', uni._row, changes);
+    logActivity_(user, 'uni_edited', uni.id,
+      (keys.length === 1 && keys[0] === 'notes' ? 'edited notes on ' : 'edited ') + (changes.name || uni.name));
+    return { id: uni.id };
+  },
+
+  // Soft delete: the row stays in the sheet, it is only hidden.
+  deleteUniversity: function (req, user) {
+    var uni = getUniversity_(req.id);
+    updateRow_('Universities', uni._row, { deleted: true, updated_at: now_() });
+    logActivity_(user, 'uni_deleted', uni.id, 'deleted the university ' + uni.name);
+    return { id: uni.id };
+  },
+
+  // My application status and documents checklist for one university.
+  saveUniversityProgress: function (req, user) {
+    var uni = getUniversity_(req.university_id);
+    var status = String(req.status || '');
+    if (UNI_STATUSES.indexOf(status) === -1) throw new Error('Unknown status.');
+    var wanted = Array.isArray(req.checklist) ? req.checklist : String(req.checklist || '').split(',');
+    var checklist = CHECKLIST_KEYS.filter(function (k) { return wanted.indexOf(k) !== -1; }).join(',');
+
+    var existing = readAll_('UniversityProgress').filter(function (r) {
+      return r.university_id === uni.id && r.user_id === user.user_id;
+    })[0];
+    var oldStatus = existing ? String(existing.status) : 'Not started';
+    var oldChecklist = existing ? String(existing.checklist) : '';
+    if (oldStatus === status && oldChecklist === checklist) return { id: existing ? existing.id : '' };
+
+    if (existing) {
+      updateRow_('UniversityProgress', existing._row, { status: status, checklist: checklist, updated_at: now_() });
+    } else {
+      appendRow_('UniversityProgress', {
+        id: newId_('g'), university_id: uni.id, user_id: user.user_id,
+        status: status, checklist: checklist, updated_at: now_()
+      });
+    }
+    if (oldStatus !== status) {
+      logActivity_(user, 'uni_status', uni.id, 'marked the application to ' + uni.name + ' as ' + status);
+    } else {
+      logActivity_(user, 'uni_status', uni.id, 'updated the documents checklist for ' + uni.name);
+    }
+    return { university_id: uni.id };
   },
 
   // --- Templates (each person has their own) ---
@@ -358,6 +476,33 @@ function getProfessor_(id) {
   var p = findRow_('Professors', 'id', id);
   if (!p || truthy_(p.deleted)) throw new Error('Professor not found.');
   return p;
+}
+
+function getUniversity_(id) {
+  var u = findRow_('Universities', 'id', id);
+  if (!u || truthy_(u.deleted)) throw new Error('University not found.');
+  return u;
+}
+
+/** Lower-case name without extra spaces, to spot the same university written twice. */
+function uniKey_(name) {
+  return String(name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function cleanUniField_(key, value) {
+  var v = String(value === undefined || value === null ? '' : value).trim();
+  if (key === 'funding') {
+    v = v.toLowerCase();
+    return FUNDING.indexOf(v) === -1 ? 'unknown' : v;
+  }
+  if (key === 'priority' || key === 'tier') {
+    var options = key === 'priority' ? PRIORITIES : TIERS;
+    for (var i = 0; i < options.length; i++) if (options[i].toLowerCase() === v.toLowerCase()) return options[i];
+    return '';
+  }
+  if (key === 'deadline') return validDate_(v);
+  if ((key === 'website' || key === 'admission_url') && v && !/^https?:\/\//i.test(v)) v = 'https://' + v;
+  return v.slice(0, UNI_FIELDS[key]);
 }
 
 function cleanField_(key, value) {

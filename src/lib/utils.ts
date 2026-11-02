@@ -1,4 +1,4 @@
-import type { Contact, Professor, Status } from './types';
+import type { Contact, Professor, Status, University } from './types';
 
 // ---------- Dates ----------
 // Dates are kept as plain text "yyyy-mm-dd" (no time zone problems).
@@ -74,7 +74,7 @@ function normalizeName(n: string): string {
     .trim();
 }
 
-function similarity(a: string, b: string): number {
+export function similarity(a: string, b: string): number {
   if (!a || !b) return 0;
   if (a === b) return 1;
   const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -99,6 +99,19 @@ export function similarProfessor(list: Professor[], name: string, university: st
     (p) => p.id !== ignoreId && p.university.trim().toLowerCase() === u && similarity(normalizeName(p.name), n) >= 0.85
   );
 }
+
+/** Same text apart from capital letters and extra spaces. */
+export const uniKey = (name: string) => (name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+/** A university in the list that is the same, or written almost the same. */
+export function similarUniversity(list: University[], name: string, ignoreId?: string): University | undefined {
+  const k = uniKey(name);
+  if (!k) return undefined;
+  return list.find((u) => u.id !== ignoreId && (uniKey(u.name) === k || similarity(uniKey(u.name), k) >= 0.88));
+}
+
+/** Which items of the documents checklist are done. */
+export const checklistKeys = (checklist: string) => (checklist || '').split(',').filter(Boolean);
 
 export function lastName(name: string): string {
   const parts = name

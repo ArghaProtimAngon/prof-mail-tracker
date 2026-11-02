@@ -59,7 +59,51 @@ export interface ActivityItem {
   details: string;
 }
 
+export const UNI_STATUSES = ['Not started', 'Preparing', 'Submitted', 'Interview', 'Accepted', 'Rejected'] as const;
+export type UniStatus = (typeof UNI_STATUSES)[number];
+
+export const CHECKLIST_ITEMS = [
+  { key: 'cv', label: 'CV' },
+  { key: 'sop', label: 'Statement of purpose' },
+  { key: 'transcripts', label: 'Transcripts' },
+  { key: 'recommendations', label: 'Recommendation letters' },
+  { key: 'english_test', label: 'English test' },
+] as const;
+
+export const PRIORITIES = ['High', 'Medium', 'Low'] as const;
+export const TIERS = ['Dream', 'Target', 'Safe'] as const;
+
+export interface University {
+  id: string;
+  name: string;
+  country: string;
+  program: string;
+  website: string;
+  admission_url: string;
+  deadline: string; // yyyy-mm-dd or ''
+  fee: string;
+  funding: 'yes' | 'no' | 'unknown';
+  priority: '' | (typeof PRIORITIES)[number];
+  tier: '' | (typeof TIERS)[number];
+  notes: string;
+  added_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** One person's application to one university. A missing row means "Not started". */
+export interface UniversityProgress {
+  id: string;
+  university_id: string;
+  user_id: string;
+  status: UniStatus;
+  checklist: string; // comma-separated CHECKLIST_ITEMS keys that are done
+  updated_at: string;
+}
+
 export interface AppData {
+  universities: University[];
+  universityProgress: UniversityProgress[];
   professors: Professor[];
   contacts: Contact[];
   users: AppUser[];

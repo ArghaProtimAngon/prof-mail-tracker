@@ -3,7 +3,7 @@ import { useData } from '../lib/data';
 import { formatDateTime } from '../lib/utils';
 
 export default function Activity() {
-  const { data, loading, userName, professorById } = useData();
+  const { data, loading, userName, professorById, universityById } = useData();
   if (loading) return <p className="muted">Loading…</p>;
 
   return (
@@ -14,7 +14,10 @@ export default function Activity() {
       ) : (
         <ul className="card divide-y divide-slate-100 dark:divide-slate-800">
           {data.activity.map((a) => {
-            const prof = a.professor_id ? professorById(a.professor_id) : undefined;
+            // Actions about universities start with "uni_" and keep the university id in professor_id.
+            const isUni = a.action.startsWith('uni_');
+            const prof = a.professor_id && !isUni ? professorById(a.professor_id) : undefined;
+            const uni = a.professor_id && isUni ? universityById(a.professor_id) : undefined;
             return (
               <li key={a.id} className="p-4">
                 <div>
@@ -23,6 +26,7 @@ export default function Activity() {
                 <div className="flex gap-3 text-xs muted">
                   <span>{formatDateTime(a.timestamp)}</span>
                   {prof && <Link to={`/professors/${prof.id}`}>Open professor</Link>}
+                  {uni && <Link to={`/universities/${uni.id}`}>Open university</Link>}
                 </div>
               </li>
             );

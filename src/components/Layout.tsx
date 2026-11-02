@@ -9,6 +9,7 @@ interface NavItem { to: string; label: string; icon: string; end?: boolean }
 const MAIN: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: '📊', end: true },
   { to: '/professors', label: 'Professors', icon: '🎓', end: false },
+  { to: '/universities', label: 'Universities', icon: '🏛️', end: false },
   { to: '/activity', label: 'Activity', icon: '🕘', end: false },
 ];
 const MORE_LINKS: NavItem[] = [
@@ -69,14 +70,14 @@ export default function Layout() {
       </div>
 
       {/* Bottom bar (mobile) */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] dark:border-slate-800 dark:bg-slate-900 md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] dark:border-slate-800 dark:bg-slate-900 md:hidden">
         {[...MAIN, { to: '/more', label: 'More', icon: '⋯', end: false }].map((l) => (
           <NavLink
             key={l.to}
             to={l.to}
             end={l.end}
             className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 py-2 text-xs ${isActive ? 'font-semibold !text-indigo-600 dark:!text-indigo-400' : '!text-slate-500 dark:!text-slate-400'}`
+              `flex flex-col items-center gap-0.5 py-2 text-[11px] ${isActive ? 'font-semibold !text-indigo-600 dark:!text-indigo-400' : '!text-slate-500 dark:!text-slate-400'}`
             }
           >
             <span className="text-xl leading-none" aria-hidden>{l.icon}</span>

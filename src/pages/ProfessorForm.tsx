@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useData } from '../lib/data';
-import { normalizeEmail, similarProfessor } from '../lib/utils';
+import { normalizeEmail, similarProfessor, uniKey } from '../lib/utils';
 
 const BLANK = { name: '', university: '', field: '', email: '', lab_url: '', scholar_url: '', has_funding: 'unknown', deadline: '', notes: '' };
 
 export default function ProfessorForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const { data, loading, save, professorById, online } = useData();
   const existing = id ? professorById(id) : undefined;
 
@@ -15,7 +16,7 @@ export default function ProfessorForm() {
     name: existing.name, university: existing.university, field: existing.field, email: existing.email,
     lab_url: existing.lab_url, scholar_url: existing.scholar_url, has_funding: existing.has_funding,
     deadline: existing.deadline, notes: existing.notes,
-  } : BLANK));
+  } : { ...BLANK, university: params.get('university') || '' }));
   const [saving, setSaving] = useState(false);
 
   if (loading) return <p className="muted">Loading…</p>;
@@ -29,6 +30,7 @@ export default function ProfessorForm() {
   // Duplicate warnings (we never block, we only warn).
   const email = normalizeEmail(form.email);
   const sameEmail = email ? data.professors.find((p) => p.id !== id && normalizeEmail(p.email) === email) : undefined;
+  const inList = data.universities.some((u) => uniKey(u.name) === uniKey(form.university));
   const similar = !sameEmail ? similarProfessor(data.professors, form.name, form.university, id) : undefined;
 
   async function submit(e: React.FormEvent) {
@@ -67,7 +69,26 @@ export default function ProfessorForm() {
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="university">University</label>
-          <input id="university" className="input" maxLength={200} value={form.university} onChange={set('university')} />
+          {/* You can type any name, or pick one from your Universities list. */}
+          <input
+            id="university"
+            className="input"
+            list="university-options"
+            autoComplete="off"
+            maxLength={200}
+            value={form.university}
+            onChange={set('university')}
+            placeholder="Type, or pick from your list"
+          />
+          <datalist id="university-options">
+            {data.universities.map((u) => <option key={u.id} value={u.name} />)}
+          </datalist>
+          {form.university.trim() && data.universities.length > 0 && !inList && (
+            <p className="mt-1 text-xs muted">
+              Not in your Universities list yet. That is fine.{' '}
+              <Link to={`/universities/new?name=${encodeURIComponent(form.university.trim())}`} target="_blank" rel="noreferrer">Add it to the list</Link>
+            </p>
+          )}
         </div>
         <div>
           <label className="label" htmlFor="field">Field</label>

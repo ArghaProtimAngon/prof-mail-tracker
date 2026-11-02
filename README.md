@@ -29,7 +29,8 @@ Your Google Sheet is the database. Google Apps Script is the "server".
 3. Click **Execution log** at the bottom. You will see a link like `https://<your-site>/join?code=abc123...`.
    Copy the code after `code=`. It is your personal invite code.
    (If you lost it, open the **Users** tab in your Sheet. It is in the `invite_code` column on Angon's row.)
-4. In your Sheet you now have the tabs Professors, Contacts, Users, Templates, Activity and Settings. `Sheet1` stays untouched.
+4. In your Sheet you now have the tabs Professors, Contacts, Users, Templates, Activity, Settings, Universities and UniversityProgress. `Sheet1` stays untouched.
+   (If you set the app up before the Universities feature existed, just run `setup()` again. It only adds the two missing tabs and keeps all your data.)
 
 Running `setup()` again is safe. It never deletes anything.
 
@@ -128,6 +129,8 @@ If the invite link is opened inside another app (like WhatsApp), long-press the 
 ## What the app does
 
 - **Dashboard**: numbers for each person and combined, status bars, follow-ups and deadlines.
+- **Universities**: a list of universities you want to apply to, even without a professor. Add one by one (**+ Add**, or **+ University** on the Dashboard) or paste many names at once (**Add many**). Each has country, program, website, admission page, deadline, fee, funding, priority, Dream/Target/Safe and notes. **Each person has their own application status** (Not started, Preparing, Submitted, Interview, Accepted, Rejected) and a documents checklist (CV, statement of purpose, transcripts, recommendation letters, English test). Everyone can see everyone's status. You can search, filter, sort and export a CSV, and the Dashboard shows counts and deadlines in the next 14 days.
+- **University field of a professor**: when you add or edit a professor, you can type any university name or pick one from your Universities list. The list shows the names from the Universities page.
 - **Professors**: search, filter by university, field, status and person, sort, and a "Needs follow-up" filter. A table on computers and cards on phones.
 - **Professor page**: all info, your own status/date/reply, both people's progress side by side, shared notes, and **Email with template**.
 - **Email with template**: pick a template, then open Gmail (or another mail app), or copy the email. Then it asks "Did you send it?". If you say yes, the status becomes "Sent" with today's date.

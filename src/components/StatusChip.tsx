@@ -1,4 +1,4 @@
-import type { Status } from '../lib/types';
+import type { Status, UniStatus } from '../lib/types';
 
 const COLORS: Record<Status, string> = {
   'Not sent': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
@@ -24,4 +24,21 @@ export function Badge({ children, tone }: { children: React.ReactNode; tone: 'or
     gray: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
   };
   return <span className={`inline-block whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold ${tones[tone]}`}>{children}</span>;
+}
+
+const UNI_COLORS: Record<UniStatus, string> = {
+  'Not started': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  Preparing: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200',
+  Submitted: 'bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200',
+  Interview: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200',
+  Accepted: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200',
+  Rejected: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200',
+};
+
+export function UniStatusChip({ status }: { status: UniStatus }) {
+  return (
+    <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${UNI_COLORS[status]}`}>
+      {status}
+    </span>
+  );
 }
