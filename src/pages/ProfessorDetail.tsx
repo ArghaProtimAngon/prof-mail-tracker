@@ -137,10 +137,18 @@ function MyProgress({ professor, contact }: { professor: Professor; contact?: Co
   const age = followUpAge({ status, date_sent: date }, followUpDays);
   const changed = status !== (contact?.status || 'Not sent') || date !== (contact?.date_sent || '') || reply !== (contact?.response_text || '');
 
+  function pickDate(next: string) {
+    setDate(next);
+    // A date means the email was sent. Removing the date of a plain "Sent" means it was not sent.
+    if (next && status === 'Not sent') setStatus('Sent');
+    if (!next && (status === 'Sent' || status === 'Seen')) setStatus('Not sent');
+  }
+
   function pickStatus(next: Status) {
     setStatus(next);
     // Choosing any "sent" status fills in today's date, if no date is set yet.
     if (next !== 'Not sent' && !date) setDate(todayStr());
+    if (next === 'Not sent') setDate(''); // "Not sent" has no date
   }
 
   async function submit(e: React.FormEvent) {
@@ -162,12 +170,18 @@ function MyProgress({ professor, contact }: { professor: Professor; contact?: Co
           {STATUSES.map((s) => <option key={s}>{s}</option>)}
         </select>
       </div>
-      {status !== 'Not sent' && (
-        <div>
-          <label className="label" htmlFor="my-date">Date sent</label>
-          <input id="my-date" className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </div>
-      )}
+      <div>
+        <label className="label" htmlFor="my-date">Date I sent the email</label>
+        <input
+          id="my-date"
+          className="input"
+          type="date"
+          value={date}
+          max={todayStr()}
+          onChange={(e) => pickDate(e.target.value)}
+        />
+        <p className="mt-1 text-xs muted">Only you can change this date. Everyone can see it.</p>
+      </div>
       <div>
         <label className="label" htmlFor="my-reply">Reply / my notes</label>
         <textarea id="my-reply" className="input" rows={3} maxLength={5000} value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Paste or summarise their reply here" />

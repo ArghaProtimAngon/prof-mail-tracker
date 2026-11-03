@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../lib/auth';
 import { useData } from '../lib/data';
 import { useExport } from '../lib/useExport';
 import { deadlineInfo, followUpAge, formatDate, formatShortDate, safeUrl } from '../lib/utils';
 import { STATUSES, type Professor, type Status } from '../lib/types';
 import StatusChip, { Badge } from '../components/StatusChip';
+import SentDate from '../components/SentDate';
 
 type Sort = 'added' | 'deadline' | 'name';
 
@@ -12,6 +14,7 @@ export default function Professors() {
   const { data, people, followUpDays, loading, contactOf, statusOf } = useData();
   const [params, setParams] = useSearchParams();
   const { busy: exporting, run: runExport } = useExport();
+  const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [university, setUniversity] = useState('');
   const [field, setField] = useState('');
@@ -122,10 +125,12 @@ export default function Professors() {
         {list.map((p) => {
           const dl = deadlineInfo(p.deadline);
           return (
-            <Link key={p.id} to={`/professors/${p.id}`} className="card block p-4 !text-inherit">
-              <div className="font-semibold">{p.name}</div>
-              <div className="text-sm muted">{[p.university, p.field].filter(Boolean).join(' · ') || 'No university yet'}</div>
-              {dl?.soon && <div className="mt-1"><Badge tone="red">Deadline {dl.days === 0 ? 'today' : `in ${dl.days}d`}</Badge></div>}
+            <div key={p.id} className="card p-4">
+              <Link to={`/professors/${p.id}`} className="block !text-inherit">
+                <div className="font-semibold">{p.name}</div>
+                <div className="text-sm muted">{[p.university, p.field].filter(Boolean).join(' · ') || 'No university yet'}</div>
+                {dl?.soon && <div className="mt-1"><Badge tone="red">Deadline {dl.days === 0 ? 'today' : `in ${dl.days}d`}</Badge></div>}
+              </Link>
               <div className="mt-3 space-y-1.5">
                 {people.map((u) => {
                   const { c, age } = progress(p, u.user_id);
@@ -133,13 +138,15 @@ export default function Professors() {
                     <div key={u.user_id} className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="w-14 shrink-0 font-medium">{u.name}</span>
                       <StatusChip status={c?.status || 'Not sent'} />
-                      {c?.date_sent && <span className="muted">{formatShortDate(c.date_sent)}</span>}
+                      {u.user_id === user?.user_id
+                        ? <SentDate professor={p} />
+                        : c?.date_sent && <span className="muted">{formatShortDate(c.date_sent)}</span>}
                       {age !== null && <Badge tone="orange">Follow up</Badge>}
                     </div>
                   );
                 })}
               </div>
-            </Link>
+            </div>
           );
         })}
       </div>
@@ -181,7 +188,9 @@ export default function Professors() {
                             <StatusChip status={c?.status || 'Not sent'} />
                             {age !== null && <Badge tone="orange">Follow up</Badge>}
                           </div>
-                          {c?.date_sent && <div className="mt-0.5 text-xs muted">{formatDate(c.date_sent)}</div>}
+                          {u.user_id === user?.user_id
+                            ? <div className="mt-1"><SentDate professor={p} /></div>
+                            : c?.date_sent && <div className="mt-0.5 text-xs muted">{formatDate(c.date_sent)}</div>}
                         </td>
                       );
                     })}
