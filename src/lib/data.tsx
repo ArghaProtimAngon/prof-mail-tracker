@@ -23,9 +23,11 @@ interface DataState {
   universityById: (id: string) => University | undefined;
   uniProgressOf: (universityId: string, userId: string) => UniversityProgress | undefined;
   uniStatusOf: (universityId: string, userId: string) => UniStatus;
+  /** Save one of MY display choices. It shows at once and is saved on the server. */
+  setPreference: (key: string, value: string[]) => Promise<void>;
 }
 
-const EMPTY: AppData = { universities: [], universityProgress: [], professors: [], contacts: [], users: [], templates: [], settings: {}, activity: [] };
+const EMPTY: AppData = { universities: [], universityProgress: [], professors: [], contacts: [], users: [], templates: [], settings: {}, activity: [], preferences: {} };
 const DataContext = createContext<DataState | null>(null);
 
 function readCache(key: string): AppData | null {
@@ -49,6 +51,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [stale, setStale] = useState(false);
   const [online, setOnline] = useState(navigator.onLine);
   const lastLoad = useRef(0);
+  const latest = useRef(data);
+  latest.current = data;
 
   const handleError = useCallback((e: unknown): string => {
     if (e instanceof ApiError && e.code === 'AUTH') logout();
@@ -105,6 +109,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return true;
   }, [handleError, refresh, toast]);
 
+  const setPreference = useCallback(async (key: string, value: string[]) => {
+    const before = latest.current.preferences[key] ?? [];
+    setData((d) => ({ ...d, preferences: { ...d.preferences, [key]: value } })); // show it straight away
+    try {
+      await api('savePreference', { key, value });
+    } catch (e) {
+      setData((d) => ({ ...d, preferences: { ...d.preferences, [key]: before } })); // it was not saved: go back
+      toast(handleError(e), 'error');
+    }
+  }, [handleError, toast]);
+
   const value = useMemo<DataState>(() => {
     const contactMap = new Map<string, Contact>();
     data.contacts.forEach((c) => contactMap.set(`${c.professor_id}|${c.user_id}`, c));
@@ -115,7 +130,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const userMap = new Map(data.users.map((u) => [u.user_id, u.name]));
     const days = Number(data.settings.follow_up_days);
     return {
-      data, loading, refreshing, stale, online, refresh, save,
+      data, loading, refreshing, stale, online, refresh, save, setPreference,
       followUpDays: days >= 1 ? days : 10,
       people: data.users.filter((u) => !u.revoked),
       professorById: (id) => profMap.get(id),
@@ -126,7 +141,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       uniProgressOf: (uid, userId) => progressMap.get(`${uid}|${userId}`),
       uniStatusOf: (uid, userId) => progressMap.get(`${uid}|${userId}`)?.status || 'Not started',
     };
-  }, [data, loading, refreshing, stale, online, refresh, save]);
+  }, [data, loading, refreshing, stale, online, refresh, save, setPreference]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

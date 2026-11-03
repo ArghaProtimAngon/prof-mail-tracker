@@ -103,6 +103,7 @@ Go to **Settings**. At the bottom you will find the **Backup** box. It shows whe
 Tips:
 - Make a backup before big changes, and now and then (for example once a week).
 - You can open the Sheet and look at your data any time. Please do not type in the backup tabs: the next backup replaces them. (If you do edit them and then restore, the app tidies up bad values.)
+- Display choices (like your columns) are not part of the backup. They are only about how things look.
 - Never share your Sheet publicly. It contains your data and the invite links of your users.
 
 ---
@@ -147,6 +148,7 @@ If a new version breaks the site: Vercel → **Deployments** → find the last g
 - **Professor page**: all info, your own status/date/reply, both people's progress side by side, shared notes, and **Email with template**.
 - **Email with template**: pick a template, then open Gmail (or another mail app), or copy the email. Then it asks "Did you send it?". If you say yes, the status becomes "Sent" with today's date.
   Placeholders: `{professor_name}`, `{professor_last_name}`, `{university}`, `{field}`, `{my_name}`.
+- **Choose your own columns**: on the Universities and Professors pages, click **⚙️ Columns** to choose what information you see (for example the **application fee**, funding, email, notes) and whose status columns you see. **This is only your view**: when Ayon adds the fee column, nothing changes for Angon. Your choice is saved for you, so it is the same on your phone and your computer. **Back to default** undoes it. (Exports to Excel always contain everything.)
 - **Activity**: who did what, newest first.
 - **Export to Excel**: all exports are `.xlsx` files (they open in Excel, Google Sheets and phones). **Export Excel** on the Professors page gives the professors with both people's status, date and reply. **Export Excel** on the Universities page gives the universities with both people's application status and documents done. **Export all (Excel)** on the Dashboard (and in the sidebar, or on the More tab on a phone) gives one file with three sheets: *Combined* (each university next to its professors), *Professors* and *Universities*.
 - **Settings**: follow-up days (default 10), dark mode (system / light / dark), and for the admin the **Backup** box.

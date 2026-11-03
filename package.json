@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
     "preview": "vite preview",
-    "test": "tsx tests/server.test.ts && tsx tests/e2e.test.ts"
+    "test": "tsx tests/server.test.ts && tsx tests/e2e.test.ts && tsx tests/columns.test.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",

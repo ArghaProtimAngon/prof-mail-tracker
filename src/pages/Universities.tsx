@@ -1,17 +1,46 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useData } from '../lib/data';
+import { UNIVERSITY_COLUMNS } from '../lib/columns';
+import { useColumns } from '../lib/useColumns';
 import { useExport } from '../lib/useExport';
 import { UNI_STATUSES, PRIORITIES, TIERS, type UniStatus, type University } from '../lib/types';
-import { checklistKeys, deadlineInfo, formatDate, uniKey } from '../lib/utils';
+import { checklistKeys, deadlineInfo, formatDate, safeUrl, uniKey } from '../lib/utils';
 import { Badge, UniStatusChip } from '../components/StatusChip';
 import AddManyModal from '../components/AddManyModal';
+import ColumnPicker from '../components/ColumnPicker';
 
 type Sort = 'added' | 'deadline' | 'name' | 'priority';
 const PRIORITY_RANK: Record<string, number> = { High: 0, Medium: 1, Low: 2, '': 3 };
+const FUNDING = { yes: 'Yes', no: 'No', unknown: 'Unknown' };
+const dash = <span className="muted">—</span>;
+
+/** What each optional column shows for one university. */
+const CELL: Record<string, (u: University) => ReactNode> = {
+  program: (u) => u.program || dash,
+  deadline: (u) => {
+    if (!u.deadline) return dash;
+    const dl = deadlineInfo(u.deadline);
+    return dl?.soon ? <Badge tone="red">{formatDate(u.deadline)}</Badge> : <span className={dl?.passed ? 'muted' : ''}>{formatDate(u.deadline)}</span>;
+  },
+  priority: (u) => [u.priority, u.tier].filter(Boolean).join(' · ') || dash,
+  fee: (u) => u.fee || dash,
+  funding: (u) => FUNDING[u.funding] ?? 'Unknown',
+  website: (u) => (safeUrl(u.website) ? <a href={safeUrl(u.website)} target="_blank" rel="noreferrer">Open</a> : dash),
+  admission: (u) => (safeUrl(u.admission_url) ? <a href={safeUrl(u.admission_url)} target="_blank" rel="noreferrer">Open</a> : dash),
+  notes: (u) => (u.notes ? <span className="line-clamp-2 max-w-xs whitespace-pre-wrap">{u.notes}</span> : dash),
+};
+
+/** The same, for the phone cards. A card is already one big link, so no links inside it. */
+const cardValue = (id: string, u: University): ReactNode =>
+  id === 'website' ? u.website || dash : id === 'admission' ? u.admission_url || dash : CELL[id](u);
 
 export default function Universities() {
-  const { data, people, loading, uniStatusOf, uniProgressOf } = useData();
+  const { data, people, loading, online, uniStatusOf, uniProgressOf } = useData();
+  const cols = useColumns('columns_universities', UNIVERSITY_COLUMNS);
+  const shownCols = UNIVERSITY_COLUMNS.filter((c) => cols.isOn(c.id));
+  const extraCols = UNIVERSITY_COLUMNS.filter((c) => !c.default && cols.isOn(c.id)); // extra info for the phone cards
+  const shownPeople = people.filter((p) => cols.personOn(p.user_id));
   const [search, setSearch] = useState('');
   const [country, setCountry] = useState('');
   const [status, setStatus] = useState<UniStatus | ''>('');
@@ -93,9 +122,12 @@ export default function Universities() {
           </select>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <button className="btn !py-1" onClick={() => runExport('universities')} disabled={exporting || !data.universities.length}>
-            ⬇️ {exporting ? 'Making file…' : 'Export Excel'}
-          </button>
+          <div className="flex gap-2">
+            <button className="btn !py-1" onClick={() => runExport('universities')} disabled={exporting || !data.universities.length}>
+              ⬇️ {exporting ? 'Making file…' : 'Export Excel'}
+            </button>
+            <ColumnPicker fixedLabel="University" defs={UNIVERSITY_COLUMNS} cols={cols} people={people} online={online} />
+          </div>
           <div className="flex items-center gap-2 text-sm">
             <label htmlFor="usort" className="muted">Sort by</label>
             <select id="usort" className="input !w-auto !py-1" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
@@ -128,13 +160,18 @@ export default function Universities() {
                 {u.tier && <Badge tone="gray">{u.tier}</Badge>}
               </div>
               <div className="text-sm muted">{[u.country, u.program].filter(Boolean).join(' · ') || 'No details yet'}</div>
+              {extraCols.length > 0 && (
+                <div className="mt-2 space-y-0.5 text-sm">
+                  {extraCols.map((c) => <div key={c.id}><span className="muted">{c.label}:</span> <span className="break-words">{cardValue(c.id, u)}</span></div>)}
+                </div>
+              )}
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {dl?.soon && <Badge tone="red">Deadline {dl.days === 0 ? 'today' : `in ${dl.days}d`}</Badge>}
                 {u.priority === 'High' && <Badge tone="orange">High priority</Badge>}
                 {professorCount(u) > 0 && <Badge tone="gray">{professorCount(u)} professor{professorCount(u) === 1 ? '' : 's'}</Badge>}
               </div>
               <div className="mt-3 space-y-1.5">
-                {people.map((p) => {
+                {shownPeople.map((p) => {
                   const done = checklistKeys(uniProgressOf(u.id, p.user_id)?.checklist || '').length;
                   return (
                     <div key={p.user_id} className="flex flex-wrap items-center gap-2 text-sm">
@@ -157,15 +194,12 @@ export default function Universities() {
             <thead>
               <tr className="border-b border-slate-200 text-left dark:border-slate-800">
                 <th className="p-3">University</th>
-                <th className="p-3">Program</th>
-                <th className="p-3">Deadline</th>
-                <th className="p-3">Priority</th>
-                {people.map((p) => <th key={p.user_id} className="p-3">{p.name}</th>)}
+                {shownCols.map((c) => <th key={c.id} className="p-3">{c.label}</th>)}
+                {shownPeople.map((p) => <th key={p.user_id} className="p-3">{p.name}</th>)}
               </tr>
             </thead>
             <tbody>
               {list.map((u) => {
-                const dl = deadlineInfo(u.deadline);
                 return (
                   <tr key={u.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40">
                     <td className="p-3 font-medium">
@@ -174,14 +208,10 @@ export default function Universities() {
                         {[u.country, professorCount(u) > 0 ? `${professorCount(u)} professor${professorCount(u) === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ')}
                       </div>
                     </td>
-                    <td className="p-3">{u.program || <span className="muted">—</span>}</td>
-                    <td className="p-3 whitespace-nowrap">
-                      {u.deadline ? (dl?.soon ? <Badge tone="red">{formatDate(u.deadline)}</Badge> : <span className={dl?.passed ? 'muted' : ''}>{formatDate(u.deadline)}</span>) : <span className="muted">—</span>}
-                    </td>
-                    <td className="p-3 whitespace-nowrap">
-                      {[u.priority, u.tier].filter(Boolean).join(' · ') || <span className="muted">—</span>}
-                    </td>
-                    {people.map((p) => {
+                    {shownCols.map((c) => (
+                      <td key={c.id} className={`p-3 ${c.id === 'deadline' || c.id === 'priority' || c.id === 'fee' ? 'whitespace-nowrap' : ''}`}>{CELL[c.id](u)}</td>
+                    ))}
+                    {shownPeople.map((p) => {
                       const done = checklistKeys(uniProgressOf(u.id, p.user_id)?.checklist || '').length;
                       return (
                         <td key={p.user_id} className="p-3">

@@ -273,6 +273,31 @@ await test('errors from the database are not shown to people', async () => {
   void db;
 });
 
+await test('preferences: each person has their own, validated', async () => {
+  const { db, T, T2 } = await twoPeople();
+  assert.deepEqual((await ok(db, 'getAll', {}, T)).preferences, {});
+  await ok(db, 'savePreference', { key: 'columns_universities', value: ['+fee', '-program'] }, T);
+  await ok(db, 'savePreference', { key: 'columns_professors', value: ['+email'] }, T2);
+  assert.deepEqual((await ok(db, 'getAll', {}, T)).preferences, { columns_universities: ['+fee', '-program'] });
+  assert.deepEqual((await ok(db, 'getAll', {}, T2)).preferences, { columns_professors: ['+email'] }, 'the other person is not affected');
+  // saving again replaces, it does not add a second row
+  await ok(db, 'savePreference', { key: 'columns_universities', value: ['+fee', '-person:u_abc'] }, T);
+  assert.deepEqual((await ok(db, 'getAll', {}, T)).preferences.columns_universities, ['+fee', '-person:u_abc']);
+  assert.equal((await db.query('SELECT 1 FROM preferences')).length, 2);
+  // an empty list means "back to the default"
+  await ok(db, 'savePreference', { key: 'columns_universities', value: [] }, T);
+  assert.deepEqual((await ok(db, 'getAll', {}, T)).preferences, {});
+  assert.equal((await db.query('SELECT 1 FROM preferences')).length, 1);
+  // validation
+  assert.match(await bad(db, 'savePreference', { key: 'nope', value: [] }, T), /Unknown preference/);
+  assert.match(await bad(db, 'savePreference', { key: 'columns_universities', value: 'fee' }, T), /not valid/);
+  assert.match(await bad(db, 'savePreference', { key: 'columns_universities', value: ['fee'] }, T), /not valid/);
+  assert.match(await bad(db, 'savePreference', { key: 'columns_universities', value: ['+fee; DROP TABLE users'] }, T), /not valid/);
+  assert.match(await bad(db, 'savePreference', { key: 'columns_universities', value: Array.from({ length: 61 }, () => '+fee') }, T), /not valid/);
+  assert.match(await bad(db, 'savePreference', { key: 'columns_universities', value: [5] }, T), /not valid/);
+  assert.equal(await bad(db, 'savePreference', { key: 'columns_universities', value: [] }, ''), 'AUTH');
+});
+
 // ---------- backup and restore ----------
 
 async function filledApp() {

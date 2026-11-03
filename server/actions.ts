@@ -18,6 +18,10 @@ const FUNDING = ['yes', 'no', 'unknown'];
 const PRIORITIES = ['High', 'Medium', 'Low'];
 const TIERS = ['Dream', 'Target', 'Safe'];
 const SETTING_KEYS = ['follow_up_days'];
+// Display choices each person can save for themselves (which columns they see in the lists).
+const PREFERENCE_KEYS = ['columns_universities', 'columns_professors'];
+// "+fee" = I want this column, "-program" = I do not. "+person:u_abc" and "-person:u_abc" do the same for a person's column.
+const CHOICE = /^[+-][a-z_]+(:[A-Za-z0-9_]+)?$/;
 
 /** How many devices one person can be logged in on. The oldest one is logged out when this is passed. */
 export const MAX_DEVICES = 10;
@@ -93,6 +97,18 @@ function updateStatement(table: string, idColumn: string, id: string, changes: R
   return [`UPDATE ${table} SET ${sets} WHERE ${idColumn}=$${cols.length + 1}`, [...cols.map((c) => changes[c]), id]];
 }
 
+/** My display choices, for example which columns I see. Never shows another person's. */
+function readPreferences(rows: Row[]): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const r of rows) {
+    try {
+      const v = JSON.parse(String(r.value));
+      if (Array.isArray(v) && v.every((x) => typeof x === 'string')) out[r.key] = v;
+    } catch { /* ignore a broken value */ }
+  }
+  return out;
+}
+
 export function requireAdmin(user: Row | null) {
   if (!user || user.role !== 'admin') fail('Only the admin can do this.');
 }
@@ -129,7 +145,7 @@ export const ACTIONS: Record<string, Handler> = {
 
   // Everything the app needs on one call, so it opens fast.
   async getAll({ db, user }) {
-    const [professors, contacts, users, templates, settings, activity, universities, progress] = await db.batch([
+    const [professors, contacts, users, templates, settings, activity, universities, progress, prefRows] = await db.batch([
       [`SELECT id, name, university, field, email, lab_url, scholar_url, has_funding, deadline, notes, added_by, created_at, updated_at
           FROM professors WHERE NOT deleted ORDER BY created_at, id`],
       [`SELECT c.id, c.professor_id, c.user_id, c.date_sent, c.status, c.response_text, c.updated_at
@@ -142,6 +158,7 @@ export const ACTIONS: Record<string, Handler> = {
           FROM universities WHERE NOT deleted ORDER BY created_at, id`],
       [`SELECT g.id, g.university_id, g.user_id, g.status, g.checklist, g.updated_at
           FROM university_progress g JOIN universities u ON u.id = g.university_id AND NOT u.deleted ORDER BY g.updated_at, g.id`],
+      ['SELECT key, value FROM preferences WHERE user_id=$1', [user!.user_id]],
     ]);
     return {
       universities,
@@ -152,6 +169,7 @@ export const ACTIONS: Record<string, Handler> = {
       templates,
       settings: Object.fromEntries(settings.map((s) => [s.key, s.value])),
       activity,
+      preferences: readPreferences(prefRows),
     };
   },
 
@@ -365,6 +383,26 @@ export const ACTIONS: Record<string, Handler> = {
     }
     await db.query('INSERT INTO settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value', [key, String(value)]);
     return { key, value };
+  },
+
+  // --- My own display choices (separate for every person) ---
+  async savePreference({ db, user }, req) {
+    const key = String(req.key ?? '');
+    if (!PREFERENCE_KEYS.includes(key)) fail('Unknown preference.');
+    const value: unknown = req.value;
+    if (!Array.isArray(value) || value.length > 60 || !value.every((v) => typeof v === 'string' && v.length <= 60 && CHOICE.test(v))) {
+      fail('Those choices are not valid.');
+    }
+    // Always MY row: the person comes from the login, never from the request.
+    if (value.length === 0) {
+      await db.query('DELETE FROM preferences WHERE user_id=$1 AND key=$2', [user!.user_id, key]);
+    } else {
+      await db.query(
+        'INSERT INTO preferences (user_id, key, value) VALUES ($1,$2,$3) ON CONFLICT (user_id, key) DO UPDATE SET value=EXCLUDED.value',
+        [user!.user_id, key, JSON.stringify(value)]
+      );
+    }
+    return { key };
   },
 
   // --- Admin only ---

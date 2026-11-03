@@ -110,4 +110,6 @@ export interface AppData {
   templates: Template[];
   settings: Record<string, string | number>;
   activity: ActivityItem[];
+  /** My own display choices, for example which columns I see. */
+  preferences: Record<string, string[]>;
 }

@@ -94,6 +94,12 @@ CREATE TABLE IF NOT EXISTS university_progress (
   updated_at text NOT NULL DEFAULT '',
   UNIQUE (university_id, user_id)
 );
+CREATE TABLE IF NOT EXISTS preferences (
+  user_id text NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  key text NOT NULL,
+  value text NOT NULL,
+  PRIMARY KEY (user_id, key)
+);
 CREATE TABLE IF NOT EXISTS meta (
   key text PRIMARY KEY,
   value text NOT NULL DEFAULT ''
