@@ -27,6 +27,7 @@ export default defineConfig({
       workbox: {
         // Any page address opens the app shell (so /join?code=... works offline-first too).
         navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ['**/*.{js,css,html,png,svg}'],
       },
     }),

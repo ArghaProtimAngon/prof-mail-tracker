@@ -1,8 +1,11 @@
 import { useState } from 'react';
+import { useAuth } from '../lib/auth';
 import { useData } from '../lib/data';
+import BackupCard from '../components/BackupCard';
 import { ThemeButton } from '../components/Layout';
 
 export default function Settings() {
+  const { user } = useAuth();
   const { followUpDays, save, online } = useData();
   const [days, setDays] = useState(String(followUpDays));
   const [busy, setBusy] = useState(false);
@@ -31,6 +34,8 @@ export default function Settings() {
         </div>
         <button type="submit" className="btn btn-primary" disabled={busy || !valid || n === followUpDays || !online}>{busy ? 'Saving…' : 'Save'}</button>
       </form>
+
+      {user?.role === 'admin' && <BackupCard />}
 
       <div className="card space-y-2 p-4">
         <div className="font-semibold">Appearance</div>

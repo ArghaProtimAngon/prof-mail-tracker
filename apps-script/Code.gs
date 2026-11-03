@@ -1,11 +1,18 @@
 /**
- * ProfMail backend (Google Apps Script)
- * Phase 1: setup, invite links, login, admin user management.
- * Phase 2-4: professors, my progress (contacts), templates, settings, activity feed.
+ * ProfMail Google Sheet script.
  *
- * Paste this whole file into Extensions > Apps Script in your Google Sheet.
- * Run setup() once. Then deploy as a Web App.
+ * NEW ROLE: the app now keeps its data in a real database (Neon). This Google Sheet is the BACKUP.
+ * The app's server calls this script to copy everything into the Sheet ("backup_write") and to read
+ * it back ("backup_read"). Both are protected by a secret key (see createBackupKey below).
+ *
+ * The old Sheet-based app API (join, getAll, addProfessor, ...) is still in this file. It is only
+ * switched on while LEGACY_API is true. Once the new app works, set LEGACY_API to false.
+ *
+ * Paste this whole file into Extensions > Apps Script in your Google Sheet, then deploy a new version.
  */
+
+// true = the OLD app (Sheet as database) still works. false = only the backup doors are open.
+var LEGACY_API = true;
 
 var SCHEMA = {
   Professors: ['id', 'name', 'university', 'field', 'email', 'lab_url', 'scholar_url', 'has_funding', 'deadline', 'notes', 'added_by', 'created_at', 'updated_at', 'deleted'],
@@ -99,6 +106,19 @@ function doPost(e) {
   try {
     var req = JSON.parse(e.postData.contents);
     var action = req.action;
+
+    // The backup doors: used by the app's server only, and protected by the secret key.
+    if (action === 'backup_write' || action === 'backup_read') {
+      var backupLock = LockService.getScriptLock();
+      backupLock.waitLock(20000);
+      try {
+        return json_({ ok: true, data: backupAction_(req) });
+      } finally {
+        backupLock.releaseLock();
+      }
+    }
+
+    if (!LEGACY_API) return json_({ ok: false, error: 'This script now only does backups.' });
     var handler = ACTIONS.hasOwnProperty(action) ? ACTIONS[action] : null;
     if (!handler) return json_({ ok: false, error: 'Unknown action.' });
 
@@ -118,6 +138,78 @@ function doPost(e) {
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message ? err.message : err) });
   }
+}
+
+// ---------- Backup doors (used by the app's server) ----------
+
+/**
+ * Run this ONCE by hand. It makes a secret key and prints it in the Execution log.
+ * Copy that key into Vercel as BACKUP_KEY. Running it again makes a NEW key (the old one stops working).
+ */
+function createBackupKey() {
+  var key = randomToken_();
+  PropertiesService.getScriptProperties().setProperty('BACKUP_KEY', key);
+  Logger.log('Your backup key is:\n' + key + '\nCopy it into Vercel as BACKUP_KEY. Keep it secret.');
+}
+
+function backupAction_(req) {
+  var key = PropertiesService.getScriptProperties().getProperty('BACKUP_KEY');
+  if (!key) throw new Error('No backup key yet. Run createBackupKey() in the Apps Script editor.');
+  if (String(req.key || '') !== key) throw new Error('Wrong backup key.');
+  return req.action === 'backup_write' ? backupWrite_(req.tables) : backupRead_();
+}
+
+/** Replaces the data rows (below the header row) of each tab with what the app sends. */
+function backupWrite_(tables) {
+  if (!tables || typeof tables !== 'object') throw new Error('Nothing to back up.');
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var counts = {};
+  Object.keys(SCHEMA).forEach(function (tab) {
+    var rows = tables[tab];
+    if (!Array.isArray(rows)) return; // not sent: leave this tab alone
+    var headers = SCHEMA[tab];
+    var sheet = ss.getSheetByName(tab);
+    if (!sheet) {
+      sheet = ss.insertSheet(tab);
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+      sheet.setFrozenRows(1);
+    }
+    var last = sheet.getLastRow();
+    if (last >= 2) sheet.getRange(2, 1, last - 1, headers.length).clearContent();
+    if (rows.length) {
+      var values = rows.map(function (row) {
+        return headers.map(function (h, c) { return row[c] === undefined || row[c] === null ? '' : String(row[c]); });
+      });
+      var range = sheet.getRange(2, 1, values.length, headers.length);
+      range.setNumberFormat('@'); // plain text, so the sheet never turns notes into dates or formulas
+      range.setValues(values);
+    }
+    counts[tab] = rows.length;
+  });
+  return { counts: counts };
+}
+
+/** Returns the data rows of each tab as text. */
+function backupRead_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var tz = ss.getSpreadsheetTimeZone();
+  var tables = {};
+  Object.keys(SCHEMA).forEach(function (tab) {
+    var sheet = ss.getSheetByName(tab);
+    if (!sheet) return;
+    var headers = SCHEMA[tab];
+    var last = sheet.getLastRow();
+    if (last < 2) { tables[tab] = []; return; }
+    var values = sheet.getRange(2, 1, last - 1, headers.length).getValues();
+    tables[tab] = values.map(function (row) {
+      return row.map(function (v, c) {
+        // If the sheet turned a text into a real date, turn it back into text.
+        if (v instanceof Date) return DATE_COLS[headers[c]] ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : v.toISOString();
+        return String(v);
+      });
+    }).filter(function (row) { return row.some(function (v) { return v !== ''; }); });
+  });
+  return { tables: tables };
 }
 
 // A GET just says hello, so you can check the deployment in a browser.
